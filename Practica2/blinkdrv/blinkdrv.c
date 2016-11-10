@@ -21,6 +21,8 @@
 #include <linux/usb.h>
 #include <linux/mutex.h>
 #include <linux/vmalloc.h>
+#include <linux/string.h>
+#include <linux/stddef.h>
 
 MODULE_LICENSE("GPL");
 
@@ -116,6 +118,26 @@ static ssize_t blink_write(struct file *file, const char *user_buffer,
 	static int color_cnt=0;
 	unsigned int color;
 
+	char *kbuff;
+
+	const char *delimitador = ",";
+	char *token;
+
+	kbuff = (char *)vmalloc(len);
+
+	if ((*off) > 0){ 
+		vfree(kbuff);/* The application can write in this entry just once !! */
+		return 0;
+	}
+
+	/* Transfer data from user to kernel space */
+	if (copy_from_user(&kbuff[0], user_buffer, len )){
+		vfree(kbuff);
+		return -EFAULT;
+	} 
+
+	kbuff[len] = '\0';
+
 	/* Pick a color and get ready for the next invocation*/		
 	color=sample_colors[color_cnt++];
 
@@ -129,20 +151,15 @@ static ssize_t blink_write(struct file *file, const char *user_buffer,
 	/* Fill up the message accordingly */
 	message[0]='\x05';
 	message[1]=0x00;
-	message[2]=0; 
-	message[3]=((color>>16) & 0xff);
- 	message[4]=((color>>8) & 0xff);
- 	message[5]=(color & 0xff);
 
+ 	for (i=0;i<NR_LEDS;i++){
 
-	for (i=0;i<NR_LEDS;i++){
-
+		color = 0x000000;
 		message[2]=i; /* Change Led number in message */
+		message[3] = ((color>>16) & 0xff); //ROJO
+ 		message[4] = ((color>>8) & 0xff);  //VERDE
+ 		message[5] = (color & 0xff);       //AZUL
 	
-		/* 
-		 * Send message (URB) to the Blinkstick device 
-		 * and wait for the operation to complete 
-		 */
 		retval=usb_control_msg(dev->udev,	
 			 usb_sndctrlpipe(dev->udev,00), /* Specify endpoint #0 */
 			 USB_REQ_SET_CONFIGURATION, 
@@ -157,6 +174,31 @@ static ssize_t blink_write(struct file *file, const char *user_buffer,
 			printk(KERN_ALERT "Executed with retval=%d\n",retval);
 			goto out_error;		
 		}
+	}
+
+ 	token = strsep(&kbuff, delimitador);
+	while(token != NULL){  //MODIFICAR CABECERA FOR
+		sscanf(token, "%d:%x", &message[2], &color);
+
+		message[3] = ((color>>16) & 0xff); //ROJO
+ 		message[4] = ((color>>8) & 0xff);  //VERDE
+ 		message[5] = (color & 0xff);       //AZUL
+
+		retval=usb_control_msg(dev->udev,	
+			 usb_sndctrlpipe(dev->udev,00), /* Specify endpoint #0 */
+			 USB_REQ_SET_CONFIGURATION, 
+			 USB_DIR_OUT| USB_TYPE_CLASS | USB_RECIP_DEVICE,
+			 0x5,	/* wValue */
+			 0, 	/* wIndex=Endpoint # */
+			 message,	/* Pointer to the message */ 
+			 NR_BYTES_BLINK_MSG, /* message's size in bytes */
+			 0);		
+
+		if (retval<0){
+			printk(KERN_ALERT "Executed with retval=%d\n",retval);
+			goto out_error;		
+		}
+		token = strsep(&kbuff, delimitador);
 	}
 
 	(*off)+=len;
