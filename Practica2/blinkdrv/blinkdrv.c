@@ -114,9 +114,10 @@ static ssize_t blink_write(struct file *file, const char *user_buffer,
 	struct usb_blink *dev=file->private_data;
 	int retval = 0;
 	int i=0;
-	unsigned char message[NR_BYTES_BLINK_MSG];
+	unsigned char messages[NR_LEDS][NR_BYTES_BLINK_MSG]; //HAY QUE LIBERARRRRRRRRRr?¿?¿?¿
 	static int color_cnt=0;
 	unsigned int color;
+	int nled = 0;
 
 	char *kbuff;
 
@@ -146,51 +147,48 @@ static ssize_t blink_write(struct file *file, const char *user_buffer,
 		color_cnt=0;
 	
 	/* zero fill*/
-	memset(message,0,NR_BYTES_BLINK_MSG);
-
-	/* Fill up the message accordingly */
-	message[0]='\x05';
-	message[1]=0x00;
-
- 	for (i=0;i<NR_LEDS;i++){
-
-		color = 0x000000;
-		message[2]=i; /* Change Led number in message */
-		message[3] = ((color>>16) & 0xff); //ROJO
- 		message[4] = ((color>>8) & 0xff);  //VERDE
- 		message[5] = (color & 0xff);       //AZUL
-	
-		retval=usb_control_msg(dev->udev,	
-			 usb_sndctrlpipe(dev->udev,00), /* Specify endpoint #0 */
-			 USB_REQ_SET_CONFIGURATION, 
-			 USB_DIR_OUT| USB_TYPE_CLASS | USB_RECIP_DEVICE,
-			 0x5,	/* wValue */
-			 0, 	/* wIndex=Endpoint # */
-			 message,	/* Pointer to the message */ 
-			 NR_BYTES_BLINK_MSG, /* message's size in bytes */
-			 0);		
-
-		if (retval<0){
-			printk(KERN_ALERT "Executed with retval=%d\n",retval);
-			goto out_error;		
-		}
-	}
+	memset(messages, 0, sizeof(messages[0][0]) * NR_BYTES_BLINK_MSG * NR_LEDS);
 
  	token = strsep(&kbuff, delimitador);
-	while(token != NULL){  //MODIFICAR CABECERA FOR
-		sscanf(token, "%d:%x", &message[2], &color);
 
-		message[3] = ((color>>16) & 0xff); //ROJO
- 		message[4] = ((color>>8) & 0xff);  //VERDE
- 		message[5] = (color & 0xff);       //AZUL
+	if(len > 1){
+		while(token != NULL){
+			if(sscanf(token, "%d:%x", &nled, &color) == 2){
+				messages[nled][2] = nled;
+				messages[nled][3] = ((color>>16) & 0xff); //ROJO
+		 		messages[nled][4] = ((color>>8) & 0xff);  //VERDE
+		 		messages[nled][5] = (color & 0xff);       //AZUL			
+			}
+			else{
+				(*off)+=len;
+				vfree(kbuff);
+				return len;
+			}
 
-		retval=usb_control_msg(dev->udev,	
-			 usb_sndctrlpipe(dev->udev,00), /* Specify endpoint #0 */
+			token = strsep(&kbuff, delimitador);
+		}			
+	}
+
+
+	for(i = 0; i < NR_LEDS; i++){
+		messages[i][0] ='\x05';
+		messages[i][1] = 0x00;
+
+
+		if(messages[i][3] == 0 && messages[i][4] == 0 && messages[i][5] == 0){
+			messages[i][2] = i;
+			messages[i][3] = ((0x000000 >> 16) & 0xff); //ROJO
+ 			messages[i][4] = ((0x000000 >> 8) & 0xff);  //VERDE
+ 			messages[i][5] = (0x000000 & 0xff); 
+		}
+
+		retval = usb_control_msg(dev->udev,	
+			 usb_sndctrlpipe(dev->udev,00),  //Specify endpoint #0 
 			 USB_REQ_SET_CONFIGURATION, 
 			 USB_DIR_OUT| USB_TYPE_CLASS | USB_RECIP_DEVICE,
 			 0x5,	/* wValue */
 			 0, 	/* wIndex=Endpoint # */
-			 message,	/* Pointer to the message */ 
+			 messages[i],	/* Pointer to the message */ 
 			 NR_BYTES_BLINK_MSG, /* message's size in bytes */
 			 0);		
 
@@ -198,13 +196,15 @@ static ssize_t blink_write(struct file *file, const char *user_buffer,
 			printk(KERN_ALERT "Executed with retval=%d\n",retval);
 			goto out_error;		
 		}
-		token = strsep(&kbuff, delimitador);
+
 	}
 
+	vfree(kbuff);
 	(*off)+=len;
 	return len;
 
 out_error:
+	vfree(kbuff);
 	return retval;	
 }
 

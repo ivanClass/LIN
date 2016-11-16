@@ -52,7 +52,22 @@ static ssize_t mywrite(struct file *filp, const char __user *buf, size_t len, lo
 	kbuff[len] = '\0';
 
 	unsigned int i;
-	sscanf(kbuff,"%x", &i);
+	
+	//comprobamos si se introduce ñapa
+	if(sscanf(kbuff,"%x", &i) == 1){
+		int a1 = i & 0x4;
+		int a2 = i & 0x2;
+		int a3 = i & 0x1;
+
+		a1 = a1 >> 1;
+		a2 = a2 << 1;
+		
+		i = a1 + a2 + a3;
+		
+		kbd_driver= get_kbd_driver_handler();
+
+		set_leds(kbd_driver, i);
+	}
 
 	/*
 	OPCION 1 !!!!!!!
@@ -82,18 +97,7 @@ static ssize_t mywrite(struct file *filp, const char __user *buf, size_t len, lo
 		a1 a2 y a3 para conocer el estado final
 	*/
 	
-	int a1 = i & 0x4;
-	int a2 = i & 0x2;
-	int a3 = i & 0x1;
-
-	a1 = a1 >> 1;
-	a2 = a2 << 1;
-	
-	i = a1 + a2 + a3;
-	
-	kbd_driver= get_kbd_driver_handler();
-
-	set_leds(kbd_driver, i); 
+	 
 
 
 	*off+=len;            /* Update the file pointer */

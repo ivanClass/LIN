@@ -16,16 +16,15 @@ int main(int argc, char *argv[]){
 	unsigned int i;
 	int ret = 0;
 
-	if(argc >= 2)
-		sscanf(argv[1],"%x", &i);
-	else
-		i = 0;
+	if(argc >= 2){
+		if(sscanf(argv[1],"%x", &i) == 1){
+			ret = ledctl(i);
 
-	ret = ledctl(i);
-
-	//GUARDAR VALOR RETORNO DE ledctl
-	if(ret == -1)
-		perror("Error!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+			//GUARDAR VALOR RETORNO DE ledctl
+			if(ret == -1)
+				perror("Error!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		}
+	}
 
 	return ret;
 }
