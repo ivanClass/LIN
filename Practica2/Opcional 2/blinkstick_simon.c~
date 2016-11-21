@@ -1,0 +1,143 @@
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <time.h>
+#include <linux/errno.h>
+#include <sys/syscall.h>
+#include <linux/unistd.h>
+
+#define MAXSIZE 8
+
+void simon();
+
+int main(){
+
+	int salir = 0;
+	int opcion;
+
+	while(salir == 0){
+		printf("1.- Jugar\n");
+		printf("0.- Salir\n");
+		printf("Introduce opción (1,2): ");
+
+		scanf("%d", &opcion);
+		if(opcion > 0 && opcion < 3 ){
+			switch (opcion) {
+				case 1:
+					getchar();
+					simon();
+					break;
+				default:
+					break;
+			}
+		}
+		if(opcion == 0){
+			salir = 1;
+			printf("Hasta pronto! :)\n");
+
+		}
+	}
+
+	return 0;
+}
+
+#define NR_SAMPLE_COLORS
+
+unsigned int colors[]={0x001000, 0x00006F, 0x3A0000, 0x1F2000, 0x001000, 0x00006F, 0x3A0000, 0x1F2000}; //verde, azul, rojo, amarillo
+/*char frases[8] = {"El primer led fue el número: ", "El segundo led fue el número: ",
+		"El tercer led fue el número: ", "El cuarto led fue el número: ",
+		"El quinto led fue el número: ", "El sexto led led fue el número: ",
+		"El séptimo led fue el número: ", "El octavo led fue el número: "};*/
+
+void simon(){
+	int filedesc;
+	int jugada = 0;
+	char *cadena;
+	char comandoJugador[20];
+
+	//AQUI GUARDAREMOS LA SECUENCIA ALEATORIO. FUNCIONARÁ COMO UN HISTORIAL.
+	int secuencia[MAXSIZE] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+	int fallo = 0;  //2 intentos por partida
+	int confundido = 0; //si se ha confundido en una posible secuencia
+
+	const char *delimitador = ",";
+	char *token;
+
+	int posibleLed;
+
+
+	//filedesc = open("/dev/usb/blinkstick0", O_RDWR|O_TRUNC);
+	if(filedesc < 0)
+    	return;
+
+	cadena = (char*) malloc (12);
+	//comandoJugador = (char*) malloc (2);
+
+	while(fallo < 2 && jugada < MAXSIZE + 1){
+		int mec;
+		int aux;
+
+		//PENDIENTE POR HACERR -> TO DO
+		//Elegir aleatoria una posicion del array de secuencias
+		//No hacer un open y un close cada vez.
+		//COntrol de errores.
+
+		for(mec = 3; mec > 0; mec--){
+			printf("Empieza en %d:\n", mec);
+
+			sleep(1);
+		}
+		printf("¡¡¡¡¡Ya!!!!!\n");
+
+        for(aux = 0; aux <= jugada; aux++){
+        	filedesc = open("/dev/usb/blinkstick0", O_RDWR|O_TRUNC);
+        	sprintf(cadena, "%d:%x", secuencia[aux], colors[secuencia[aux]]);
+        	printf("%s\n", cadena);
+
+	        write(filedesc, cadena, strlen(cadena)*sizeof(char));
+
+			//lseek(filedesc, 0, SEEK_SET);
+	        filedesc = close(filedesc);
+
+			sleep(1);
+        }
+
+        fgets(comandoJugador, 20, stdin);
+
+        aux = 0;
+        while(!confundido && aux <= jugada){
+        	printf("Letra aux:%d led:%c\n", aux, comandoJugador[aux*2]);
+        	posibleLed = comandoJugador[aux*2] - '0';
+
+        	//sscanf(comandoJugador[aux], "%c", posibleLed);
+
+        	if(posibleLed != secuencia[aux]){
+        		confundido = 1;
+        	}
+
+        	aux++;
+        }
+
+        if(confundido){
+        	//PONER TODOS A ROJO
+
+        	printf("Se ha confundido :( \n Tiene una última oportunidad\n");
+
+        	fallo++;
+        }
+        else
+        	jugada++;
+
+        //free(comandoJugador);
+	}
+
+	//filedesc = close(filedesc);
+    if(filedesc < 0)
+        return;
+}
+

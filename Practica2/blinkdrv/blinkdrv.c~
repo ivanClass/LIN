@@ -111,6 +111,7 @@ unsigned int sample_colors[]={0x000011, 0x110000, 0x001100, 0x000000};
 static ssize_t blink_write(struct file *file, const char *user_buffer,
 			  size_t len, loff_t *off)
 {
+	printk(KERN_INFO "Me he metido\n");
 	struct usb_blink *dev=file->private_data;
 	int retval = 0;
 	int i=0;
@@ -138,6 +139,7 @@ static ssize_t blink_write(struct file *file, const char *user_buffer,
 	} 
 
 	kbuff[len] = '\0';
+	printk(KERN_INFO "Valor de kbuff: %s\n",kbuff);
 
 
 	/* Pick a color and get ready for the next invocation*/		

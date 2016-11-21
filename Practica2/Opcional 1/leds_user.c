@@ -21,7 +21,11 @@ long ledctl(unsigned int leds){
 }
 
 void muestrameHoraLeds();
+<<<<<<< HEAD
+void enciendeLeds(int nVecesEnciende, unsigned int cadena);
+=======
 void enciendeLeds(int nVecesEnciende, char *cadena);
+>>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 void codificaBinario();
 
 
@@ -29,12 +33,20 @@ int main(){
 
 	int salir = 0;
 	int opcion;
+<<<<<<< HEAD
+	ledctl(0);
+=======
 
+>>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 	while(salir == 0){
 		printf("1.- Muestra la hora en los leds\n");
 		printf("2.- Codifica en binario (valores 0-7)\n");
 		printf("0.- Salir\n");
+<<<<<<< HEAD
+		printf("Introduce opción (0, 1, 2): ");
+=======
 		printf("Introduce opción (1,2): ");
+>>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 
 		scanf("%d", &opcion);
 		if(opcion > 0 && opcion < 3 ){
@@ -68,6 +80,10 @@ void muestrameHoraLeds(){
 	int horas = cosa2->tm_hour;
 	int minutos = cosa2->tm_min;
 	int segundos = cosa2->tm_sec;
+<<<<<<< HEAD
+
+=======
+>>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 	printf("Son las: %d:%d:%d horas\n",horas,minutos,segundos);
 
 	
@@ -85,6 +101,17 @@ void muestrameHoraLeds(){
 void enciendeLeds(int nVecesEnciende, unsigned int leds){
 	int i;
 
+<<<<<<< HEAD
+	struct timespec tiempo;
+	tiempo.tv_sec = 700 / 1000;
+	tiempo.tv_nsec = (700 % 1000) * 1000000;
+
+	for (i = 0; i < nVecesEnciende; ++i) {
+		ledctl(leds);
+		nanosleep(&tiempo, NULL);
+		ledctl(0x0); //Escribimos un 0 para que el led parpadee
+		nanosleep(&tiempo, NULL);
+=======
 	for (i = 0; i < nVecesEnciende; ++i) {
 		//llamar a la llamada del sistema ledctl(0x3)
 		ret = ledctl(leds);
@@ -93,10 +120,22 @@ void enciendeLeds(int nVecesEnciende, unsigned int leds){
 		//Escribimos un 0 para que el led parpadee
 		ret = ledctl(0x0);
 		sleep(1);
+>>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 	}
 }
 
 void codificaBinario(){
+<<<<<<< HEAD
+	unsigned int ndecimal;
+
+	printf("Introduce número a codificar (0-7): ");
+
+	scanf("%x", &ndecimal);
+	ledctl(ndecimal);
+
+	
+}
+=======
 	int filedesc;
 	int ndecimal;
 	char *cadena = "";
@@ -138,3 +177,4 @@ void codificaBinario(){
 	if(write(filedesc, cadena, strlen(cadena)*sizeof(char)) != strlen(cadena)*sizeof(char))
 		return;
 }
+>>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
