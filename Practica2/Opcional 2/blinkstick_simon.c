@@ -11,6 +11,8 @@
 #include <linux/unistd.h>
 
 #define MAXSIZE 8
+#define MAXINTENTOS 2
+#define clear() printf("\033[H\033[J")
 static const char todosRojos[] = "0:0x3A0000, 1:0x3A0000, 2:0x3A0000, 3:0x3A0000, 4:0x3A0000, 5:0x3A0000, 6:0x3A0000, 7:0x3A0000";
 static const char todosVerdes[] = "0:0x001000, 1:0x001000, 2:0x001000, 3:0x001000, 4:0x001000, 5:0x001000, 6:0x001000, 7:0x001000";
 
@@ -23,7 +25,7 @@ int main(){
 
 	int salir = 0;
 	int opcion;
-
+	clear();
 	while(salir == 0){
 		printf("1.- Jugar\n");
 		printf("0.- Salir\n");
@@ -74,6 +76,7 @@ void simon(){
     	return;
 
 	srand(time(NULL));
+	clear();
 
 	for(mec = 0; mec < MAXSIZE; mec++){
 		while(repetido){
@@ -92,7 +95,7 @@ void simon(){
 
 	cadena = (char*) malloc (12);
 
-	while(fallo < 2 && jugada < MAXSIZE){
+	while(fallo < MAXINTENTOS && jugada < MAXSIZE){
 
 		int aux;
 
@@ -102,16 +105,19 @@ void simon(){
 		for(mec = 3; mec > 0; mec--){
 			printf("Empieza en %d:\n", mec);
 			sleep(1);
+			clear();
 		}
 		printf("¡¡¡¡¡Ya!!!!!\n");
+		
 
         for(aux = 0; aux <= jugada; aux++){
         	sprintf(cadena, "%d:%x", secuencia[aux], colors[secuencia[aux]]);
         	parpadeo(cadena, 1, filedesc);
         }
+	clear();
         printf("Inserte números del 1-8 separados por espacio. Ej: <1 2 3>: ");
         fgets(comandoJugador, 20, stdin);
-
+	
         aux = 0;
         confundido = 0;
         while(!confundido && aux <= jugada){
@@ -125,13 +131,20 @@ void simon(){
         }
 
         if(confundido){
-        	printf("Se ha confundido :( \n Tiene una última oportunidad\n");
-        	fallo++;
+    		fallo++;
+
+			if(fallo == MAXINTENTOS)
+				printf("Oooooh!!!!, has perdido :( \n");
+			else if(fallo > 1)
+	        		printf("Se ha confundido :( \n Tiene una última oportunidad\n");
             parpadeo(todosRojos, 3, filedesc);
+		clear();
+		
         }
         else{
         	parpadeo(todosVerdes, 3, filedesc);
             jugada++;
+		clear();
         }
 	}
 
@@ -143,12 +156,15 @@ void simon(){
 
 void parpadeo(char *cadena, int numVeces, int filedesc){
 	int i;
+	struct timespec tiempo;
+	tiempo.tv_sec = 400 / 1000;
+	tiempo.tv_nsec = (400 % 1000) * 1000000;
 
 	for(i = numVeces; i > 0; i--){
         write(filedesc, cadena, strlen(cadena)*sizeof(char));
-		sleep(1);
+		nanosleep(&tiempo, NULL);
 		apagarLeds(filedesc);
-        sleep(1);
+        nanosleep(&tiempo, NULL);
 	}
 }
 
