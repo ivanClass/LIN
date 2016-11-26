@@ -22,7 +22,7 @@ static inline int set_leds(struct tty_driver* handler, unsigned int mask){
     return (handler->ops->ioctl) (vc_cons[fg_console].d->port.tty, KDSETLED,mask);
 }
 
-SYSCALL_DEFINE1(ledctl, unsigned int leds){
+SYSCALL_DEFINE1(ledctl, unsigned int, leds){
 	//printk(KERN_DEBUG "Hello world!\n");
 	int ret = 0;
 	//CUERPO DE LA FUNCIÓN
