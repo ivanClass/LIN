@@ -21,11 +21,7 @@ long ledctl(unsigned int leds){
 }
 
 void muestrameHoraLeds();
-<<<<<<< HEAD
 void enciendeLeds(int nVecesEnciende, unsigned int cadena);
-=======
-void enciendeLeds(int nVecesEnciende, char *cadena);
->>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 void codificaBinario();
 
 
@@ -33,20 +29,13 @@ int main(){
 
 	int salir = 0;
 	int opcion;
-<<<<<<< HEAD
 	ledctl(0);
-=======
 
->>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 	while(salir == 0){
 		printf("1.- Muestra la hora en los leds\n");
 		printf("2.- Codifica en binario (valores 0-7)\n");
 		printf("0.- Salir\n");
-<<<<<<< HEAD
 		printf("Introduce opción (0, 1, 2): ");
-=======
-		printf("Introduce opción (1,2): ");
->>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 
 		scanf("%d", &opcion);
 		if(opcion > 0 && opcion < 3 ){
@@ -80,10 +69,7 @@ void muestrameHoraLeds(){
 	int horas = cosa2->tm_hour;
 	int minutos = cosa2->tm_min;
 	int segundos = cosa2->tm_sec;
-<<<<<<< HEAD
 
-=======
->>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 	printf("Son las: %d:%d:%d horas\n",horas,minutos,segundos);
 
 	
@@ -101,7 +87,6 @@ void muestrameHoraLeds(){
 void enciendeLeds(int nVecesEnciende, unsigned int leds){
 	int i;
 
-<<<<<<< HEAD
 	struct timespec tiempo;
 	tiempo.tv_sec = 700 / 1000;
 	tiempo.tv_nsec = (700 % 1000) * 1000000;
@@ -111,70 +96,14 @@ void enciendeLeds(int nVecesEnciende, unsigned int leds){
 		nanosleep(&tiempo, NULL);
 		ledctl(0x0); //Escribimos un 0 para que el led parpadee
 		nanosleep(&tiempo, NULL);
-=======
-	for (i = 0; i < nVecesEnciende; ++i) {
-		//llamar a la llamada del sistema ledctl(0x3)
-		ret = ledctl(leds);
-		sleep(1);
-		//llamar a la llamada del sistema ledctl(0x0)
-		//Escribimos un 0 para que el led parpadee
-		ret = ledctl(0x0);
-		sleep(1);
->>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
 	}
 }
 
 void codificaBinario(){
-<<<<<<< HEAD
 	unsigned int ndecimal;
 
 	printf("Introduce número a codificar (0-7): ");
 
 	scanf("%x", &ndecimal);
 	ledctl(ndecimal);
-
-	
 }
-=======
-	int filedesc;
-	int ndecimal;
-	char *cadena = "";
-
-	printf("Introduce número a codificar (0-7): ");
-
-	scanf("%d", &ndecimal);
-    switch (ndecimal) {
-		case 0:
-			cadena = "";
-			break;
-		case 1:
-			cadena = "3";
-			break;
-		case 2:
-			cadena = "2";
-			break;
-		case 3:
-			cadena = "23";
-			break;
-		case 4:
-			cadena = "1";
-			break;
-		case 5:
-			cadena = "13";
-			break;
-		case 6:
-			cadena = "12";
-			break;
-		case 7:
-			cadena = "123";
-			break;
-		default:
-			cadena = "123";
-			break;
-	}
-
-
-	if(write(filedesc, cadena, strlen(cadena)*sizeof(char)) != strlen(cadena)*sizeof(char))
-		return;
-}
->>>>>>> a15ea521a924fcb2818fa0d9417df1cd0170f8b7
