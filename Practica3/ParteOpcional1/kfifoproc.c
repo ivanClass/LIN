@@ -186,10 +186,10 @@ static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff
 	//printk(KERN_INFO "Numero de elementos antes de remover por consumicion: %d\n", size_cbuffer_t(cbuffer));
 	//remove_items_cbuffer_t(cbuffer, kbuffer, len);
 	numLeidos = kfifo_out(&kfifobuffer, kbuffer, len);
-	if(numLeidos != len){
+	/*if(numLeidos != len){
 		printk(KERN_INFO "NUMLEIDOS: %d\n", numLeidos);
 		return -1;
-	}
+	}*/
 	//printk(KERN_INFO "Numero de elementos despues de remover por consumicion: %d\n", size_cbuffer_t(cbuffer));
 
 	//cond_signal(prod);
@@ -298,24 +298,24 @@ int init_module(void){
 	sema_init(&sem_prod, 0);
 	sema_init(&sem_cons, 0); //bloqueado al principio, ya que no hay elementos
 
-	proc_entry = proc_create_data("fifomod", 0666, NULL, &proc_entry_fops, NULL); 
+	proc_entry = proc_create_data("kfifomod", 0666, NULL, &proc_entry_fops, NULL); 
 	if (proc_entry == NULL) {
 	    //destroy_cbuffer_t(cbuffer);
 	    kfifo_free(&kfifobuffer);
 
-	    printk(KERN_INFO "Fifomod: No puedo crear la entrada en proc\n");
+	    printk(KERN_INFO "kFifomod: No puedo crear la entrada en proc\n");
 	    return  -ENOMEM;
 	}
 	      
-	printk(KERN_INFO "Fifomod: Cargado el Modulo con total exito.\n");
+	printk(KERN_INFO "kFifomod: Cargado el Modulo con total exito.\n");
 	  
 	return 0;
 
 }
 
 void cleanup_module(void){
-	remove_proc_entry("fifomod", NULL);
+	remove_proc_entry("kfifomod", NULL);
   	//destroy_cbuffer_t(cbuffer);
   	kfifo_free(&kfifobuffer);
-  	printk(KERN_INFO "Fifomod: Modulo descargado con total exito.\n");
+  	printk(KERN_INFO "kFifomod: Modulo descargado con total exito.\n");
 }

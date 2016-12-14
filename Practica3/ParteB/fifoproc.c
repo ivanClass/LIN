@@ -122,8 +122,9 @@ static int fifoproc_release(struct inode *node, struct file *fd){
 		}
 	}
 
-	if(cons_count + prod_count == 0){
+	if((cons_count + prod_count) == 0){
 		clear_cbuffer_t(cbuffer);
+		printk(KERN_INFO "BUffer reseteado correctamente\n");
 	}
 
 	//unlock(mtx);
@@ -235,7 +236,7 @@ static ssize_t fifoproc_write(struct file *fd, const char *buf, size_t len, loff
 
 	}
 
-	if(cons_count == 0){
+	if(cons_count == 0 && is_empty_cbuffer_t(&cbuffer)){
 		//unlock(mtx);
 		printk(KERN_INFO "No hay consumidores\n");
 
