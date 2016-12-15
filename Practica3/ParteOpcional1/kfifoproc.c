@@ -7,8 +7,7 @@
 #include <asm-generic/uaccess.h>
 #include <asm-generic/errno.h>
 #include <linux/semaphore.h>
-
-//#include "cbuffer.h"
+#include <linux/init.h>
 #include <linux/kfifo.h>
 
 
@@ -16,12 +15,10 @@ MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("FIFO");
 MODULE_AUTHOR("Ivan Aguilera Calle & Daniel Garcia Moreno");
 
-#define MAX_ITEMS_KFIFO 64	
+#define MAX_ITEMS_KFIFO	64
 #define MAX_CHARS_KBUF	100
 
-//cbuffer_t* cbuffer;
 static struct kfifo kfifobuffer;
-
 int prod_count = 0;
 int cons_count = 0;
 struct semaphore mtx;
@@ -130,6 +127,7 @@ static int fifoproc_release(struct inode *node, struct file *fd){
 	if((cons_count + prod_count) == 0){
 		//clear_cbuffer_t(cbuffer);
 		kfifo_reset(&kfifobuffer);
+		printk(KERN_INFO "BUffer reseteado correctamente\n");
 	}
 
 	//unlock(mtx);
@@ -140,7 +138,6 @@ static int fifoproc_release(struct inode *node, struct file *fd){
 
 static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff_t *off){
 	char kbuffer[MAX_CHARS_KBUF];
-	int numLeidos = 0;
 
 	printk(KERN_INFO "El consumidor va a empezar a consumir\n");
 	if(len > MAX_ITEMS_KFIFO){
@@ -155,10 +152,8 @@ static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff
 	//printk(KERN_INFO "Elementos en cbuffer que se pueden leer: %d\n", size_cbuffer_t(cbuffer));
 	//printk(KERN_INFO "Numero de huecos libres que no se consumen: %d\n", nr_gaps_cbuffer_t(cbuffer));
 
-	//size_cbuffer_t(cbuffer)
-	//printk(KERN_INFO "kfifo_size: %d", kfifo_size(&kfifo));
-	//printk(KERN_INFO "kfifo_len: %d", kfifo_len(&kfifo));
-	while(kfifo_size(&kfifobuffer) < len && prod_count > 0){
+	//while(size_cbuffer_t(cbuffer) < len && prod_count > 0){
+	while(kfifo_len(&kfifobuffer) < len && prod_count > 0){
 		printk(KERN_INFO "El consumidor se duerme. No hay nada que consumir\n");
 
 		//cond_wait(cons, mtx);
@@ -177,7 +172,9 @@ static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff
 		}
 	}
 
-	if((prod_count == 0) &&  kfifo_is_empty(&kfifobuffer)){
+	//if((prod_count == 0) && (is_empty_cbuffer_t(cbuffer) != 0)){
+	if((prod_count == 0) && kfifo_is_empty(&kfifobuffer)){
+
 		//unlock(mtx);
 		up(&mtx);
 		return 0;
@@ -185,11 +182,7 @@ static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff
 
 	//printk(KERN_INFO "Numero de elementos antes de remover por consumicion: %d\n", size_cbuffer_t(cbuffer));
 	//remove_items_cbuffer_t(cbuffer, kbuffer, len);
-	numLeidos = kfifo_out(&kfifobuffer, kbuffer, len);
-	/*if(numLeidos != len){
-		printk(KERN_INFO "NUMLEIDOS: %d\n", numLeidos);
-		return -1;
-	}*/
+	kfifo_out(&kfifobuffer, kbuffer, len);
 	//printk(KERN_INFO "Numero de elementos despues de remover por consumicion: %d\n", size_cbuffer_t(cbuffer));
 
 	//cond_signal(prod);
@@ -201,7 +194,7 @@ static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff
 	//unlock(mtx);
 	up(&mtx);
 
-	if(copy_to_user(buf, kbuffer, len)){   ///SI NO FUNCIONA USAR KFIFO_TO_USER
+	if(copy_to_user(buf, kbuffer, len)){ 
 		return -1;
 	}
 
@@ -230,7 +223,8 @@ static ssize_t fifoproc_write(struct file *fd, const char *buf, size_t len, loff
 	}
 
 	//printk(KERN_INFO "Numero de huecos libres para producir: %d\n", nr_gaps_cbuffer_t(cbuffer));
-	//nr_gaps_cbuffer_t(cbuffer)
+	//while(nr_gaps_cbuffer_t(cbuffer) < len && cons_count > 0){
+	printk(KERN_INFO "kfifo avail = %d\n", kfifo_avail(&kfifobuffer));
 	while(kfifo_avail(&kfifobuffer) < len && cons_count > 0){
 		printk(KERN_INFO "El productor se duerme. No tengo hueco para producir\n");
 
@@ -284,14 +278,15 @@ static const struct file_operations proc_entry_fops = {
 };
 
 int init_module(void){
-	//cbuffer = create_cbuffer_t(MAX_ITEMS_CBUF);
 	int ret;
-
+	//cbuffer = create_cbuffer_t(MAX_ITEMS_KFIFO);
 	ret = kfifo_alloc(&kfifobuffer, MAX_ITEMS_KFIFO, GFP_KERNEL);
-
-	//!cbuffer
-	if (ret) {
-	   	return -ENOMEM;
+	//if (!cbuffer) {
+	   	//return -ENOMEM;
+	//}
+	if(ret){
+		printk(KERN_ERR "Error al hacer alloc de kfifobuffer\n");
+		return ret;
 	}
 	  
 	sema_init(&mtx, 1);
@@ -300,9 +295,8 @@ int init_module(void){
 
 	proc_entry = proc_create_data("kfifomod", 0666, NULL, &proc_entry_fops, NULL); 
 	if (proc_entry == NULL) {
-	    //destroy_cbuffer_t(cbuffer);
+	    //destroy_cbuffer_t(kcbuffer);
 	    kfifo_free(&kfifobuffer);
-
 	    printk(KERN_INFO "kFifomod: No puedo crear la entrada en proc\n");
 	    return  -ENOMEM;
 	}
