@@ -127,7 +127,7 @@ static int fifoproc_release(struct inode *node, struct file *fd){
 		}
 	}
 
-	if(cons_count + prod_count == 0){
+	if((cons_count + prod_count) == 0){
 		//clear_cbuffer_t(cbuffer);
 		kfifo_reset(&kfifobuffer);
 	}
@@ -177,7 +177,7 @@ static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff
 		}
 	}
 
-	if(prod_count == 0){
+	if((prod_count == 0) &&  kfifo_is_empty(&kfifobuffer)){
 		//unlock(mtx);
 		up(&mtx);
 		return 0;

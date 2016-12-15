@@ -61,7 +61,7 @@ int fifoproc_read(char *buff, int len){
 
 	unlock(mtx);
 
-	if(copy_to_user(buff, kbuffer, len)){ 
+	if(copy_to_user(buff, kbuffer, len) && is_empty(cbuffer) != 0){ 
 		return Error;
 	}
 
