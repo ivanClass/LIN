@@ -1,0 +1,5 @@
+Ejecución de los scripts:
+1.- Ejecutar en una terminal el script "productor.sh": va insertando elementos en la lista.
+2.- Ejecutar en otra terminal seguidamente el script "consumidor.sh": va consumiendo elementos de la lista.
+
+En la terminal del consumidor se irá visualizando una ventana con los elementos que quedan en la lista tras haber consumido un elemento, y los que se van generando nuevos también.

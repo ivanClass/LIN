@@ -168,7 +168,7 @@ static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff
 		}
 	}
 
-	if((prod_count == 0) && (is_empty_cbuffer_t(cbuffer) != 0)){
+	if((prod_count == 0) && is_empty_cbuffer_t(cbuffer) != 0){
 		//unlock(mtx);
 		up(&mtx);
 		return 0;

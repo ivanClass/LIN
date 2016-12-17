@@ -182,7 +182,9 @@ static ssize_t fifoproc_read(struct file *fd, char __user *buf, size_t len, loff
 
 	//printk(KERN_INFO "Numero de elementos antes de remover por consumicion: %d\n", size_cbuffer_t(cbuffer));
 	//remove_items_cbuffer_t(cbuffer, kbuffer, len);
-	kfifo_out(&kfifobuffer, kbuffer, len);
+	if(kfifo_out(&kfifobuffer, kbuffer, len) != len){
+		return -1;
+	}
 	//printk(KERN_INFO "Numero de elementos despues de remover por consumicion: %d\n", size_cbuffer_t(cbuffer));
 
 	//cond_signal(prod);
@@ -255,7 +257,9 @@ static ssize_t fifoproc_write(struct file *fd, const char *buf, size_t len, loff
 
 	//printk(KERN_INFO "Numero de elementos antes de insertar por produccion: %d\n", size_cbuffer_t(cbuffer));
 	//insert_items_cbuffer_t(cbuffer, kbuffer, len);
-	kfifo_in(&kfifobuffer, kbuffer, len);
+	if(kfifo_in(&kfifobuffer, kbuffer, len) != len){
+		return -1;
+	}
 	//printk(KERN_INFO "Numero de elementos despues de insertar por produccion: %d\n", size_cbuffer_t(cbuffer));
 	
 	//cond_signal(cons);

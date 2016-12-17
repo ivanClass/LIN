@@ -9,7 +9,7 @@ cbuffer_t *cbuffer;
 int fifoproc_write(char *buff, int len){
 	char kbuffer[MAX_KBUF];
 
-	if(len > MAX_CBUFFER_LEN || len > MAX_KBUF){  PREGUNTA -> si el texto tiene más de 50 carácteres, ¿no se va a poder escribir nunca?
+	if(len > MAX_CBUFFER_LEN || len > MAX_KBUF){ 
 		return Error;
 	}
 
@@ -50,18 +50,19 @@ int fifoproc_read(char *buff, int len){
 		cond_wait(cons, mtx);
 	}
 
-	if(prod_count == 0){
+	if((prod_count == 0) && is_empty_cbuffer_t(cbuffer) != 0){
 		unlock(mtx);
 		return 0;
 	}
 
 	remove_items_cbuffer_t(cbuffer, kbuffer, len);
 
+
 	cons_signal(prod);
 
 	unlock(mtx);
 
-	if(copy_to_user(buff, kbuffer, len) && is_empty(cbuffer) != 0){ 
+	if(copy_to_user(buff, kbuffer, len)){ 
 		return Error;
 	}
 
