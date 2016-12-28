@@ -4,16 +4,19 @@
 #include <linux/string.h>
 #include <linux/timer.h>
 #include <linux/random.h>
-#include "cbuffer.h"
+#include <linux/vmalloc.h>
+#include <linux/jiffies.h>
+#include <linux/spinlock.h>
+#include <linux/workqueue.h>
 #include <asm-generic/errno.h>
 #include <asm-generic/uaccess.h>
-#include <linux/vmalloc.h>
+#include "cbuffer.h"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("ModTimerModule Module");
 MODULE_AUTHOR("Ivan Aguilera Calle & Daniel García Moreno");
 
-#define MAX_ITEMS_CBUF	50
+#define MAX_ITEMS_CBUF	64
 #define MAX_CHARS_KBUF	100
 
 struct timer_list my_timer; /* Structure that describes the kernel timer */
@@ -26,16 +29,48 @@ static int timer_period_ms;
 static int emergency_treshold;
 static int max_random;
 
+//SPINLOCK
+DEFINE_SPINLOCK(sp);
 
-/* Function invoked when timer expires (fires) */
+/* Work descriptor */
+struct work_struct transfer_task;
+
+
+//Function invoked when timer expires (fires)////////////////////////////////////////
 static void fire_timer(unsigned long data)
 {
-	//GENERAR NUÜMERO ALEATORIO
-        
+	unsigned int numAleatorio;
+	int cpuActual;
+	unsigned long flags;
+	char* numeroAleatorio;
+
+	numAleatorio = get_random_int() % max_random;
+	sprintf(numeroAleatorio, "%d", numAleatorio);
+
+	spin_lock_irqsave(&sp, flags);
+		insert_items_cbuffer_t(cbuffer, &numAleatorio, sizeof(unsigned int));
+		
+		if(work_pending(&transfer_task)){ //Si hay trabajo pendiente esperar a que finalice
+			flush_work(&transfer_task);
+		}
+
+		if(((size_cbuffer_t(cbuffer)/MAX_ITEMS_CBUF) * 100) >= emergency_treshold){
+			cpuActual = smp_processor_id();
+			schedule_work_on(~cpuActual, &transfer_task);
+		}
+	spin_unlock_irqrestore(&sp, flags);
+  
     /* Re-activate the timer one second from now */
-	mod_timer( &(my_timer), jiffies + HZ); //jiffies + HZ = 1s
+	mod_timer(&(my_timer), jiffies + msecs_to_jiffies(timer_period_ms)); //jiffies + HZ = 1s
+	
 }
 
+//WORK///////////////////////////////////////////////////////////////////////////////
+static void copy_items_into_list(struct work_struct *work){
+	//TAREA DIFERIDA
+}
+
+//MODCONFIG//////////////////////////////////////////////////////////////////////////
 static ssize_t modconfig_proc_read(struct file *fd, char __user *buf, size_t len, loff_t *off){
 	char *dest;
 	char *kbuff;
@@ -127,14 +162,19 @@ static const struct file_operations proc_entry_fops_modconfig = {
 
 int init_modtimer_module( void )
 {
+    //INICIALIZAR VARIABLES DE CONFIGURACIÓN//////////////////////////////////////////
+	timer_period_ms = 500;
+	emergency_treshold = 80;
+	max_random = 300;
+
     //TEMPORIZADOR///////////////////////////////////////////////////////////////////
     /* Create timer */
     init_timer(&my_timer);
     /* Initialize field */
     my_timer.data = 0;
     my_timer.function = fire_timer;
-    my_timer.expires = jiffies + HZ;  /* Activate it one second from now */
-
+    //my_timer.expires = jiffies + HZ;  /* Activate it one second from now */
+    my_timer.expires = jiffies + msecs_to_jiffies(timer_period_ms);
 
     //BUFFER CIRCULAR/////////////////////////////////////////////////////////////////
 	cbuffer = create_cbuffer_t(MAX_ITEMS_CBUF);
@@ -162,12 +202,9 @@ int init_modtimer_module( void )
 	    return  -ENOMEM;
 	}
 
-	//INICIALIZAR VARIABLES DE CONFIGURACIÓN//////////////////////////////////////////
-	timer_period_ms = 500;
-	emergency_treshold = 80;
-	max_random = 300;
-
-	      
+	//Initialize work structure (with function)///////////////////////////////////////
+	INIT_WORK(&transfer_task, copy_items_into_list);
+      
 	printk(KERN_INFO "ModTimer: Cargado el Modulo con total exito.\n");
 	printk(KERN_INFO "ModConfig: Cargado el Modulo con total exito.\n");
 	  
