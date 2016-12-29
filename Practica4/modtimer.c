@@ -8,6 +8,8 @@
 #include <linux/jiffies.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
+#include <linux/list.h>
+#include <linux/semaphore.h>
 #include <asm-generic/errno.h>
 #include <asm-generic/uaccess.h>
 #include "cbuffer.h"
@@ -24,6 +26,13 @@ cbuffer_t* cbuffer;
 static struct proc_dir_entry *proc_entry_modtimer;
 static struct proc_dir_entry *proc_entry_modconfig;
 
+//LISTA ENLAZADA
+struct list_head mylist;
+typedef struct {
+	int data;
+	struct list_head links;
+} list_item_t;
+
 //VARIABLES DE CONFIGURACION
 static int timer_period_ms;
 static int emergency_treshold;
@@ -31,6 +40,15 @@ static int max_random;
 
 //SPINLOCK
 DEFINE_SPINLOCK(sp);
+
+//SEMAFOROS
+int prod_count = 0;
+int cons_count = 0;
+struct semaphore mtx;
+struct semaphore sem_prod;
+struct semaphore sem_cons;
+int nr_prod_waiting = 0;
+int nr_cons_waiting = 0;
 
 /* Work descriptor */
 struct work_struct transfer_task;
@@ -45,10 +63,9 @@ static void fire_timer(unsigned long data)
 	char* numeroAleatorio;
 
 	numAleatorio = get_random_int() % max_random;
-	sprintf(numeroAleatorio, "%d", numAleatorio);
 
 	spin_lock_irqsave(&sp, flags);
-		insert_items_cbuffer_t(cbuffer, &numAleatorio, sizeof(unsigned int));
+		insert_cbuffer_t(cbuffer, numAleatorio);
 		
 		if(work_pending(&transfer_task)){ //Si hay trabajo pendiente esperar a que finalice
 			flush_work(&transfer_task);
@@ -68,6 +85,32 @@ static void fire_timer(unsigned long data)
 //WORK///////////////////////////////////////////////////////////////////////////////
 static void copy_items_into_list(struct work_struct *work){
 	//TAREA DIFERIDA
+	
+	unsigned int numero;
+	list_item_t *nodo;
+	int numElementosBuffer = 0;
+
+	spin_lock_irqsave(&sp, flags);
+		numElementosBuffer = size_cbuffer_t(cbuffer);
+	spin_unlock_irqrestore(&sp, flags);
+
+	//BAJAR SEMAFORO
+	down_interruptible(&mtx);
+	while(numElementosBuffer > 0){
+		spin_lock_irqsave(&sp, flags);
+			numero = remove_cbuffer_t(cbuffer);
+			numElementosBuffer = size_cbuffer_t(cbuffer);
+		spin_unlock_irqrestore(&sp, flags);
+	
+		list_item_t *nodo = vmalloc(sizeof(list_item_t));
+		nodo->data = numero;
+		list_add_tail(&nodo->links, &mylist);
+	}
+	//SUBIR SEMAFORO
+	up(&mtx);
+
+	//DESPERTAR AL PROGRAMA DE USUARIO QUE ESTE ESPERANDO A QUE HAYA ELEMENTOS EN LA LISTA
+	// PENDIENTE   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 //MODCONFIG//////////////////////////////////////////////////////////////////////////
@@ -140,10 +183,49 @@ static ssize_t modtimer_proc_read(struct file *fd, char __user *buf, size_t len,
 }
 
 static int modtimer_proc_open(struct inode *node, struct file *fd){
+	//REQUISITOS
+	// - Incrementar el contador de referencias cuando se haga un open
+	// - Si el contador de referencias es mayor que uno, no permitir NINGUNA operacion
+
+	if((int)module_refcount(THIS_MODULE) > 1){
+		printk(KERN_INFO "El modulo ya esta en uso. No entran mas");
+		return 0;
+	} 
+
+	//incremento cont de referencias
+	try_module_get(THIS_MODULE);
+
+	//EMPIEZA LA CUENTA///////////////////////////////////////////////////////////////
+	/* Activate the timer for the first time */
+    add_timer(&my_timer);
+
 	return 0;
 }
 
 static int modtimer_proc_release(struct inode *node, struct file *fd){
+	//desactivar temporizador
+	del_timer_sync(&my_timer);
+
+	//esperar a la finalizacion de TODOS los trabajos
+	flush_scheduled_work();
+
+	//vaciado de buffer
+	clear_cbuffer_t(cbuffer);
+
+	//vaciar la lista enlazada
+	list_item_t *item = NULL;
+	struct list_head  *cur_node = NULL;
+	struct list_head *aux = NULL;
+
+	list_for_each_safe(cur_node, aux, &mylist){
+		item = list_entry(cur_node, list_item_t, links);
+		list_del(cur_node);
+		vfree(item);
+	}
+
+	//derecemento del contador de referencias
+	module_put(THIS_MODULE);
+
 	return 0;
 }
 
@@ -207,10 +289,18 @@ int init_modtimer_module( void )
       
 	printk(KERN_INFO "ModTimer: Cargado el Modulo con total exito.\n");
 	printk(KERN_INFO "ModConfig: Cargado el Modulo con total exito.\n");
+
+	//INICIALIZAMOS LA LISTA ENLAZADA/////////////////////////////////////////////////
+	INIT_LIST_HEAD(&mylist); /* Inicializamos la lista */
+
+	//INICIALIZAMOS SEMAFOROS/////////////////////////////////////////////////////////
+	sema_init(&mtx, 1);
+	sema_init(&sem_prod, 0);
+	sema_init(&sem_cons, 0);
 	  
 	//EMPIEZA LA CUENTA///////////////////////////////////////////////////////////////
 	/* Activate the timer for the first time */
-    add_timer(&my_timer);
+    //add_timer(&my_timer);
 
     return 0;
 }
