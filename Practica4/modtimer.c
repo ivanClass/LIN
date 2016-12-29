@@ -42,13 +42,9 @@ static int max_random;
 DEFINE_SPINLOCK(sp);
 
 //SEMAFOROS
-int prod_count = 0;
-int cons_count = 0;
-struct semaphore mtx;
-struct semaphore sem_prod;
-struct semaphore sem_cons;
-int nr_prod_waiting = 0;
-int nr_cons_waiting = 0;
+struct semaphore mtx;           //Semaforo que se encarga de la sincronizacion de los procesos que modifican la lista
+struct semaphore mtx2;          //Semaforo que se encarga de la sincronizacion de los procesos que quieren leer.
+int procesosWaitingRead = 0;
 
 /* Work descriptor */
 struct work_struct transfer_task;
@@ -60,17 +56,18 @@ static void fire_timer(unsigned long data)
 	unsigned int numAleatorio;
 	int cpuActual;
 	unsigned long flags;
-	char* numeroAleatorio;
 
 	numAleatorio = get_random_int() % max_random;
 
 	spin_lock_irqsave(&sp, flags);
-		insert_cbuffer_t(cbuffer, numAleatorio);
 		
 		if(work_pending(&transfer_task)){ //Si hay trabajo pendiente esperar a que finalice
 			flush_work(&transfer_task);
 		}
 
+		insert_cbuffer_t(cbuffer, numAleatorio);
+		printk(KERN_INFO "Numero generado aleatoriamente: %i\n", numAleatorio);
+		
 		if(((size_cbuffer_t(cbuffer)/MAX_ITEMS_CBUF) * 100) >= emergency_treshold){
 			cpuActual = smp_processor_id();
 			schedule_work_on(~cpuActual, &transfer_task);
@@ -87,30 +84,39 @@ static void copy_items_into_list(struct work_struct *work){
 	//TAREA DIFERIDA
 	
 	unsigned int numero;
-	list_item_t *nodo;
 	int numElementosBuffer = 0;
+	unsigned long flags;
+	int numElemeMovidos;
 
 	spin_lock_irqsave(&sp, flags);
 		numElementosBuffer = size_cbuffer_t(cbuffer);
+		numElemeMovidos = numElementosBuffer;
 	spin_unlock_irqrestore(&sp, flags);
 
 	//BAJAR SEMAFORO
-	down_interruptible(&mtx);
-	while(numElementosBuffer > 0){
-		spin_lock_irqsave(&sp, flags);
-			numero = remove_cbuffer_t(cbuffer);
-			numElementosBuffer = size_cbuffer_t(cbuffer);
-		spin_unlock_irqrestore(&sp, flags);
-	
-		list_item_t *nodo = vmalloc(sizeof(list_item_t));
-		nodo->data = numero;
-		list_add_tail(&nodo->links, &mylist);
+	if(!down_interruptible(&mtx)){
+		while(numElementosBuffer > 0){
+			spin_lock_irqsave(&sp, flags);
+				numero = remove_cbuffer_t(cbuffer);
+				numElementosBuffer = size_cbuffer_t(cbuffer);
+			spin_unlock_irqrestore(&sp, flags);
+		
+			list_item_t *nodo = vmalloc(sizeof(list_item_t));
+			nodo->data = numero;
+			list_add_tail(&nodo->links, &mylist);
+		}
+
+		printk(KERN_INFO "%i elementos movidos del buffer circular a la lista\n", numElemeMovidos);
+
+		//DESPERTAR AL PROGRAMA DE USUARIO QUE ESTE ESPERANDO A QUE HAYA ELEMENTOS EN LA LISTA
+		if(procesosWaitingRead > 0){
+			up(&mtx2);
+			procesosWaitingRead--;
+		}	
 	}
+
 	//SUBIR SEMAFORO
 	up(&mtx);
-
-	//DESPERTAR AL PROGRAMA DE USUARIO QUE ESTE ESPERANDO A QUE HAYA ELEMENTOS EN LA LISTA
-	// PENDIENTE   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 //MODCONFIG//////////////////////////////////////////////////////////////////////////
@@ -120,9 +126,11 @@ static ssize_t modconfig_proc_read(struct file *fd, char __user *buf, size_t len
 
 	kbuff = (char *)vmalloc(len);
 	
+	//Como queremos que no se este continuamente leyendo,  no comentamos la siguiente condicion
+
 	if ((*off) > 0){ /* Tell the application that there is nothing left to read */
-	  vfree(kbuff);
-	  return 0;
+		vfree(kbuff);
+		return 0;
 	}
 
 	dest = kbuff;
@@ -179,7 +187,65 @@ static ssize_t modconfig_proc_write(struct file *fd, const char *buf, size_t len
 
 //MODTIMER///////////////////////////////////////////////////////////////////////////
 static ssize_t modtimer_proc_read(struct file *fd, char __user *buf, size_t len, loff_t *off){
-	return 0;
+	//REQUISITOS
+	// - Dormir si no hay elementos que leer.
+
+	char *dest;
+	char *kbuff;
+
+	kbuff = (char *)vmalloc(len);
+	dest = kbuff;
+	
+	list_item_t *item = NULL;
+	struct list_head  *cur_node = NULL;
+	struct list_head *aux = NULL;
+
+	//lock candado de acceder a la lista
+	if(down_interruptible(&mtx)){
+		vfree(kbuff);
+		return -EINTR;
+	}
+
+	while(list_empty(&mylist)){
+		printk(KERN_INFO "El consumidor se duerme. No hay nada que leer\n");
+
+		//cond_wait(cons, mtx);
+		procesosWaitingRead++;
+		up(&mtx);
+
+		if(down_interruptible(&mtx2)){
+			down(&mtx);
+			procesosWaitingRead--;
+			up(&mtx);
+			vfree(kbuff);
+			return -EINTR;
+		}
+
+		if(down_interruptible(&mtx)){
+			vfree(kbuff);
+			return -EINTR;
+		}
+	}
+
+	list_for_each_safe(cur_node, aux, &mylist){
+		item = list_entry(cur_node, list_item_t, links);
+		dest += sprintf(dest, "%i\n", item->data);
+		list_del(cur_node);
+		vfree(item);
+	}
+
+
+	//unlock(mtx);
+	up(&mtx);
+
+	if (copy_to_user(buf, &kbuff[0], dest - kbuff)){
+		vfree(kbuff);
+		return -EINVAL;
+	}
+
+	(*off) += (dest-kbuff);
+
+	return (dest-kbuff);
 }
 
 static int modtimer_proc_open(struct inode *node, struct file *fd){
@@ -264,10 +330,9 @@ int init_modtimer_module( void )
 	   	return -ENOMEM;
 	}
 	  
-	/*sema_init(&mtx, 1);
-	sema_init(&sem_prod, 0);
-	sema_init(&sem_cons, 0); //bloqueado al principio, ya que no hay elementos
-	*/
+	//SEMAFOROS///////////////////////////////////////////////////////////////////////
+	sema_init(&mtx, 1);  //candado que comienza libre para su uso
+	sema_init(&mtx2, 0); //para variables condicionales
 
 	//ENTRADA PROC MODTIMER///////////////////////////////////////////////////////////
 	proc_entry_modtimer = proc_create_data("modtimer", 0666, NULL, &proc_entry_fops_modtimer, NULL); 
@@ -292,31 +357,44 @@ int init_modtimer_module( void )
 
 	//INICIALIZAMOS LA LISTA ENLAZADA/////////////////////////////////////////////////
 	INIT_LIST_HEAD(&mylist); /* Inicializamos la lista */
-
-	//INICIALIZAMOS SEMAFOROS/////////////////////////////////////////////////////////
-	sema_init(&mtx, 1);
-	sema_init(&sem_prod, 0);
-	sema_init(&sem_cons, 0);
 	  
 	//EMPIEZA LA CUENTA///////////////////////////////////////////////////////////////
 	/* Activate the timer for the first time */
     //add_timer(&my_timer);
+    //se realiza en el open
 
     return 0;
 }
 
 
 void cleanup_modtimer_module( void ){
-  /* Wait until completion of the timer function (if it's currently running) and delete timer */
-  del_timer_sync(&my_timer);
+	
+	/* Wait until completion of the timer function (if it's currently running) and delete timer */
+	del_timer_sync(&my_timer);
 
-  remove_proc_entry("modtimer", NULL);
-  remove_proc_entry("modconfig", NULL);
-  destroy_cbuffer_t(cbuffer);
-  printk(KERN_INFO "ModTimer: Modulo descargado con total exito.\n");
-  printk(KERN_INFO "ModConfig: Modulo descargado con total exito.\n");
+	//CONTROLAR QUE CUANDO HAYA UN PROCESO QUE ESTË ESCRIBIENDO NO SE PUEDA DESCARGAR
+	//esperar a la finalizacion de TODOS los trabajos
+	flush_scheduled_work();
 
-  //CONTROLAR QUE CUANDO HAYA UN PROCESO QUE ESTË ESCRIBIENDO NO SE PUEDA DESCARGAR
+	remove_proc_entry("modtimer", NULL);
+	remove_proc_entry("modconfig", NULL);
+	destroy_cbuffer_t(cbuffer);
+	printk(KERN_INFO "ModTimer: Modulo descargado con total exito.\n");
+	printk(KERN_INFO "ModConfig: Modulo descargado con total exito.\n");
+
+	if(!list_empty(&mylist)){
+		printk(KERN_INFO "modlist: lista no vacia. Se borra la lista\n");
+
+		list_item_t *item = NULL;
+		struct list_head  *cur_node = NULL;
+		struct list_head *aux = NULL;
+
+		list_for_each_safe(cur_node, aux, &mylist){
+			item = list_entry(cur_node, list_item_t, links);
+			list_del(cur_node);
+			vfree(item);
+		}	
+	}
 }
 
 module_init( init_modtimer_module );
