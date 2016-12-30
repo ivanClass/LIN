@@ -20,6 +20,7 @@ MODULE_AUTHOR("Ivan Aguilera Calle & Daniel García Moreno");
 
 #define MAX_ITEMS_CBUF	64
 #define MAX_CHARS_KBUF	100
+#define MAX_ELEM_CBUF MAX_ITEMS_CBUF/sizeof(unsigned int)
 
 struct timer_list my_timer; /* Structure that describes the kernel timer */
 cbuffer_t* cbuffer;
@@ -29,7 +30,7 @@ static struct proc_dir_entry *proc_entry_modconfig;
 //LISTA ENLAZADA
 struct list_head mylist;
 typedef struct {
-	int data;
+	unsigned int data;
 	struct list_head links;
 } list_item_t;
 
@@ -68,9 +69,14 @@ static void fire_timer(unsigned long data)
 		insert_cbuffer_t(cbuffer, numAleatorio);
 		printk(KERN_INFO "Numero generado aleatoriamente: %i\n", numAleatorio);
 		
-		if(((size_cbuffer_t(cbuffer)/MAX_ITEMS_CBUF) * 100) >= emergency_treshold){
+		if((size_cbuffer_t(cbuffer)/((double)MAX_ELEM_CBUF) * 100) >= emergency_treshold){
 			cpuActual = smp_processor_id();
-			schedule_work_on(~cpuActual, &transfer_task);
+			//printk("CPU actual: %i\n", cpuActual);
+			//printk("CPU alternativa: %i\n", ~cpuActual);
+			if(cpuActual)
+				schedule_work_on(0, &transfer_task);
+			else
+				schedule_work_on(1, &transfer_task);
 		}
 	spin_unlock_irqrestore(&sp, flags);
   
@@ -207,7 +213,7 @@ static ssize_t modtimer_proc_read(struct file *fd, char __user *buf, size_t len,
 	}
 
 	while(list_empty(&mylist)){
-		printk(KERN_INFO "El consumidor se duerme. No hay nada que leer\n");
+		printk(KERN_INFO "El proceso se duerme. No hay nada que leer en el buffer\n");
 
 		//cond_wait(cons, mtx);
 		procesosWaitingRead++;
@@ -253,9 +259,11 @@ static int modtimer_proc_open(struct inode *node, struct file *fd){
 	// - Incrementar el contador de referencias cuando se haga un open
 	// - Si el contador de referencias es mayor que uno, no permitir NINGUNA operacion
 
-	if((int)module_refcount(THIS_MODULE) > 1){
+	printk(KERN_INFO "Numero de referencias actual: %i\n", (int)module_refcount(THIS_MODULE));
+
+	if((int)module_refcount(THIS_MODULE) >= 1){
 		printk(KERN_INFO "El modulo ya esta en uso. No entran mas");
-		return 0;
+		return -EBUSY;
 	} 
 
 	//incremento cont de referencias
