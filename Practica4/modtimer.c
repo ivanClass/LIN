@@ -66,7 +66,8 @@ static void fire_timer(unsigned long data)
 			flush_work(&transfer_task);
 		}
 
-		insert_cbuffer_t(cbuffer, numAleatorio);
+		//insert_cbuffer_t(cbuffer, numAleatorio);
+		insert_items_cbuffer_t(cbuffer, (char*) &numAleatorio, sizeof(unsigned int));
 		printk(KERN_INFO "Numero generado aleatoriamente: %i\n", numAleatorio);
 		
 		if((size_cbuffer_t(cbuffer)/((double)MAX_ELEM_CBUF) * 100) >= emergency_treshold){
@@ -103,7 +104,8 @@ static void copy_items_into_list(struct work_struct *work){
 	if(!down_interruptible(&mtx)){
 		while(numElementosBuffer > 0){
 			spin_lock_irqsave(&sp, flags);
-				numero = remove_cbuffer_t(cbuffer);
+				//numero = remove_cbuffer_t(cbuffer);
+				remove_items_cbuffer_t(cbuffer, &numero, sizeof(unsigned int));
 				numElementosBuffer = size_cbuffer_t(cbuffer);
 			spin_unlock_irqrestore(&sp, flags);
 		
