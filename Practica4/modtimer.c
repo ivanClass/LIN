@@ -18,9 +18,10 @@ MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("ModTimerModule Module");
 MODULE_AUTHOR("Ivan Aguilera Calle & Daniel García Moreno");
 
-#define MAX_ITEMS_CBUF	64
+#define MAX_ELEM_CBUF 10
+#define MAX_ITEMS_CBUF (MAX_ELEM_CBUF*sizeof(unsigned int))
 #define MAX_CHARS_KBUF	100
-#define MAX_ELEM_CBUF MAX_ITEMS_CBUF/sizeof(unsigned int)
+ 
 
 struct timer_list my_timer; /* Structure that describes the kernel timer */
 cbuffer_t* cbuffer;
@@ -70,10 +71,9 @@ static void fire_timer(unsigned long data)
 		insert_items_cbuffer_t(cbuffer, (char*) &numAleatorio, sizeof(unsigned int));
 		printk(KERN_INFO "Numero generado aleatoriamente: %i\n", numAleatorio);
 		
-		if((size_cbuffer_t(cbuffer)/((double)MAX_ELEM_CBUF) * 100) >= emergency_treshold){
+		if(((100*size_cbuffer_t(cbuffer))/MAX_ITEMS_CBUF) >= emergency_treshold){
 			cpuActual = smp_processor_id();
-			//printk("CPU actual: %i\n", cpuActual);
-			//printk("CPU alternativa: %i\n", ~cpuActual);
+
 			if(cpuActual)
 				schedule_work_on(0, &transfer_task);
 			else
@@ -90,38 +90,35 @@ static void fire_timer(unsigned long data)
 static void copy_items_into_list(struct work_struct *work){
 	//TAREA DIFERIDA
 	
-	unsigned int numero;
+	//unsigned int numero;
+	unsigned int numeros[MAX_ELEM_CBUF];
 	int numElementosBuffer = 0;
 	unsigned long flags;
-	int numElemeMovidos;
+	int i = 0;
 
 	spin_lock_irqsave(&sp, flags);
-		numElementosBuffer = size_cbuffer_t(cbuffer);
-		numElemeMovidos = numElementosBuffer;
+		numElementosBuffer = size_cbuffer_t(cbuffer)/sizeof(unsigned int);
+		remove_items_cbuffer_t(cbuffer, &numeros, size_cbuffer_t(cbuffer));
 	spin_unlock_irqrestore(&sp, flags);
 
 	//BAJAR SEMAFORO
 	if(!down_interruptible(&mtx)){
-		while(numElementosBuffer > 0){
-			spin_lock_irqsave(&sp, flags);
-				//numero = remove_cbuffer_t(cbuffer);
-				remove_items_cbuffer_t(cbuffer, &numero, sizeof(unsigned int));
-				numElementosBuffer = size_cbuffer_t(cbuffer);
-			spin_unlock_irqrestore(&sp, flags);
-		
+	
+		for(i = 0; i < numElementosBuffer; i++){
 			list_item_t *nodo = vmalloc(sizeof(list_item_t));
-			nodo->data = numero;
+			nodo->data = numeros[i];
 			list_add_tail(&nodo->links, &mylist);
 		}
-
-		printk(KERN_INFO "%i elementos movidos del buffer circular a la lista\n", numElemeMovidos);
-
-		//DESPERTAR AL PROGRAMA DE USUARIO QUE ESTE ESPERANDO A QUE HAYA ELEMENTOS EN LA LISTA
-		if(procesosWaitingRead > 0){
-			up(&mtx2);
-			procesosWaitingRead--;
-		}	
 	}
+
+
+	printk(KERN_INFO "%i elementos movidos del buffer circular a la lista\n", numElementosBuffer);
+
+	//DESPERTAR AL PROGRAMA DE USUARIO QUE ESTE ESPERANDO A QUE HAYA ELEMENTOS EN LA LISTA
+	if(procesosWaitingRead > 0){
+		up(&mtx2);
+		procesosWaitingRead--;
+	}	
 
 	//SUBIR SEMAFORO
 	up(&mtx);
