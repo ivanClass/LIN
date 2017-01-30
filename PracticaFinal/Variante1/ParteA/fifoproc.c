@@ -293,6 +293,9 @@ int init_module(void){
 	for (i = 0; i < numberFifos; ++i){
 		fifoArray[i].cbuffer = create_cbuffer_t(MAX_ITEMS_CBUF);
 		if (!fifoArray[i].cbuffer) {
+				//BORRAR /PROC
+				//BORRAR BUFF
+				//BORRAR FIFOARRAY
 	   		return -ENOMEM;
 		}
 
@@ -311,10 +314,11 @@ int init_module(void){
 			int j = i + 1;
 			for (j = 0; j < i+1; ++j){
 				destroy_cbuffer_t(fifoArray[i].cbuffer);
-				printk(KERN_INFO "Error al cargar modulo\n");
-
-				//Borrar todos los  /proc?
+				//Borrar todos los  /proc/fifoX
+				sprintf(cadena, "fifo%d", i);
+				remove_proc_entry(cadena, NULL);
 			}
+			printk(KERN_INFO "Error al cargar modulo\n");
 
 			vfree(fifoArray);
 		    return  -ENOMEM;

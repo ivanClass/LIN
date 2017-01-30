@@ -99,7 +99,7 @@ void* envioMensajes(void *arg){
 	while((bytes = read(0, message.contenido, MAX_CHARS_MSG)) > 0) {
 		//message.nr_bytes=bytes;
 		message.type = NORMAL_MSG;
-
+		
 		wbytes = write(fd_fifo, &message, size);
 		memset(message.contenido, 0, sizeof(message.contenido));
 		compruebaFallosWrite(wbytes, size);	
@@ -119,7 +119,6 @@ void* envioMensajes(void *arg){
 	close(fd_fifo);
 	exit(0);
 }
-
 //FUNCION RECEPTOR
 void* recepcionMensajes(void *arg){
 	struct argsThread *args = arg;
