@@ -22,3 +22,16 @@ A partir de este punto pueden comenzar a mandarse mensajes
 
 FINALIZACIÓN DE LA COMUNICACIÓN
 CTRL + D
+
+
+DESINSTALACION
+sudo rmmod fifomod
+
+
+PARTE B
+
+
+COMPILACION PARA ANDROID X86
+
+
+gcc -m32 -static -lpthread chat.c -o chat-android
