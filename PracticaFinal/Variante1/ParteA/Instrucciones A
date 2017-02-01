@@ -1,0 +1,25 @@
+make clean
+make
+
+sudo insmod fifomod [numberFifos=X]//Numero /proc/fifoX que se crean (Por defecto numberFifos=2)
+make clean
+
+gcc -pthread -o chat chat.c
+
+#TERMINAL 1
+./chat Fulanito /proc/fifo0 /proc/fifo1
+
+#TERMINAL 2
+./chat Menganito /proc/fifo1 /proc/fifo0
+
+#TERMINAL 3
+./chat Daniel /proc/fifo2 /proc/fifo3
+
+#TERMINAL 4
+./chat Ivan /proc/fifo3 /proc/fifo2
+
+Mandar mensajes
+
+CTRL+D Para indicar fin conexión
+
+sudo rmmod fifomod // borra todas la entradas /proc/fifoX creadas

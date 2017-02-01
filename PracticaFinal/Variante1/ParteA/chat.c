@@ -22,7 +22,6 @@
 #define KCYN  "\x1B[1;36m"
 #define KWHT  "\x1B[37m"
 
-// http://cc.byexamples.com/2007/01/20/print-color-string-without-ncurses/
 
 typedef enum {
 	NORMAL_MSG, /* Mensaje para transferir lineas de la conversacion entre

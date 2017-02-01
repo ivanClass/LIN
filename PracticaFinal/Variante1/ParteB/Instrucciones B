@@ -1,0 +1,20 @@
+cd
+cd Escritorio/Variante1/ParteB
+make clean
+make
+
+//ejecutar netcfg en MV Android
+adb connect 192.168.206.13X
+adb root
+adb connect 192.168.206.13X
+adb push fifomod.ko /data/local/tmp
+make clean
+adb shell
+cd /data/local/tmp
+insmod fifomod.ko
+ls /proc
+
+
+gcc -m32 -static -pthread chat.c -o chat-android
+adb push chat-android /data/local/tmp
+ 
